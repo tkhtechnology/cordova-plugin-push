@@ -486,9 +486,8 @@ class FCMService : FirebaseMessagingService() {
     if (fullScreenIntent) {
       mBuilder
         .setFullScreenIntent(contentIntent, true)
-        .setPriority(NotificationCompat.PRIORITY_HIGH)
-    } else {
-      mBuilder.setContentIntent(contentIntent)
+        .setCategory(NotificationCompat.CATEGORY_CALL)
+        .setPriority(NotificationCompat.PRIORITY_MAX)
     }
     val prefs: SharedPreferences = context.getSharedPreferences(
       PushConstants.COM_ADOBE_PHONEGAP_PUSH,
