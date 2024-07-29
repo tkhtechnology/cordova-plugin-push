@@ -1,6 +1,7 @@
 package com.adobe.phonegap.push
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -460,19 +461,22 @@ class FCMService : FirebaseMessagingService() {
   private fun createNotification(extras: Bundle?) {
     val mNotificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
     val appName = getAppName(this)
+    val fullScreenIntent: Boolean = extras?.getString(PushConstants.FULL_SCREEN_NOTIFICATION, "").equals("1")
+    Log.d(TAG, "fullScreenIntent = $fullScreenIntent")
     val notId = parseNotificationIdToInt(extras)
-    val notificationIntent = Intent(this, PushHandlerActivity::class.java).apply {
-      addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-      putExtra(PushConstants.PUSH_BUNDLE, extras)
-      putExtra(PushConstants.NOT_ID, notId)
-    }
+    val activityClass: Class<out Activity?> =
+      if (fullScreenIntent) FullScreenActivity::class.java else PushHandlerActivity::class.java
+    val notificationIntent = Intent(this, activityClass)
+    notificationIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+    notificationIntent.putExtra(PushConstants.PUSH_BUNDLE, extras)
+    notificationIntent.putExtra(PushConstants.NOT_ID, notId)
     val random = SecureRandom()
     var requestCode = random.nextInt()
     val contentIntent = PendingIntent.getActivity(
       this,
       requestCode,
       notificationIntent,
-      PendingIntent.FLAG_UPDATE_CURRENT or FLAG_IMMUTABLE
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
     )
     val dismissedNotificationIntent = Intent(
       this,
@@ -491,7 +495,7 @@ class FCMService : FirebaseMessagingService() {
       this,
       requestCode,
       dismissedNotificationIntent,
-      PendingIntent.FLAG_CANCEL_CURRENT or FLAG_IMMUTABLE
+      PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_MUTABLE
     )
 
     val mBuilder: NotificationCompat.Builder =
@@ -503,7 +507,16 @@ class FCMService : FirebaseMessagingService() {
       .setContentIntent(contentIntent)
       .setDeleteIntent(deleteIntent)
       .setAutoCancel(true)
-
+    if (fullScreenIntent) {
+      mBuilder
+        .setFullScreenIntent(contentIntent, true)
+        .setCategory(NotificationCompat.CATEGORY_CALL)
+        .setPriority(NotificationCompat.PRIORITY_MAX)
+    }
+    val prefs: SharedPreferences = context.getSharedPreferences(
+      PushConstants.COM_ADOBE_PHONEGAP_PUSH,
+      Context.MODE_PRIVATE
+    )
     val localIcon = pushSharedPref.getString(PushConstants.ICON, null)
     val localIconColor = pushSharedPref.getString(PushConstants.ICON_COLOR, null)
     val soundOption = pushSharedPref.getBoolean(PushConstants.SOUND, true)
@@ -678,7 +691,6 @@ class FCMService : FirebaseMessagingService() {
           var intent: Intent?
           var pIntent: PendingIntent?
           val callback = action.getString(PushConstants.CALLBACK)
-
           when {
             inline -> {
               Log.d(TAG, "Version: ${Build.VERSION.SDK_INT} = ${Build.VERSION_CODES.M}")
@@ -696,11 +708,12 @@ class FCMService : FirebaseMessagingService() {
               pIntent = if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.M) {
                 Log.d(TAG, "push activity for notId $notId")
 
+
                 PendingIntent.getActivity(
                   this,
                   uniquePendingIntentRequestCode,
                   intent,
-                  PendingIntent.FLAG_ONE_SHOT or FLAG_MUTABLE
+                  PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_MUTABLE
                 )
               } else {
                 Log.d(TAG, "push receiver for notId $notId")
@@ -709,7 +722,7 @@ class FCMService : FirebaseMessagingService() {
                   this,
                   uniquePendingIntentRequestCode,
                   intent,
-                  PendingIntent.FLAG_ONE_SHOT or FLAG_MUTABLE
+                  PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_MUTABLE
                 )
               }
             }
@@ -720,7 +733,7 @@ class FCMService : FirebaseMessagingService() {
               pIntent = PendingIntent.getActivity(
                 this, uniquePendingIntentRequestCode,
                 intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or FLAG_IMMUTABLE
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
               )
             }
 
@@ -730,7 +743,7 @@ class FCMService : FirebaseMessagingService() {
               pIntent = PendingIntent.getBroadcast(
                 this, uniquePendingIntentRequestCode,
                 intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or FLAG_IMMUTABLE
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
               )
             }
           }
